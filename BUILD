@@ -22,6 +22,7 @@ load(
     "crypto_internal_headers",
     "crypto_sources",
     "crypto_sources_linux_x86_64",
+    "crypto_sources_linux_x86",
     "crypto_sources_linux_ppc64le",
     "crypto_sources_mac_x86_64",
     "fips_fragments",
@@ -33,9 +34,14 @@ load(
 )
 
 config_setting(
-    name = "linux_x86_64",
+    name = "linux_x86",
     values = {"cpu": "k8"},
 )
+
+# config_setting(
+#     name = "linux_x86_64",
+#     values = {"cpu": "k8"},
+# )
 
 config_setting(
     name = "linux_ppc64le",
@@ -81,8 +87,13 @@ posix_copts = [
     # "-DOPENSSL_C11_ATOMIC",
 ]
 
+posix_x86_copts = posix_copts + [
+    "-m32",
+]
+
 boringssl_copts = select({
-    ":linux_x86_64": posix_copts,
+    ":linux_x86": posix_x86_copts,
+    # ":linux_x86_64": posix_copts,
     ":linux_ppc64le": posix_copts,
     ":mac_x86_64": posix_copts,
     ":windows_x86_64": [
@@ -93,7 +104,8 @@ boringssl_copts = select({
 })
 
 crypto_sources_asm = select({
-    ":linux_x86_64": crypto_sources_linux_x86_64,
+    ":linux_x86": crypto_sources_linux_x86,
+    # ":linux_x86_64": crypto_sources_linux_x86_64,
     ":linux_ppc64le": crypto_sources_linux_ppc64le,
     ":mac_x86_64": crypto_sources_mac_x86_64,
     "//conditions:default": [],
@@ -107,8 +119,13 @@ posix_copts_c11 = [
     "-Wstrict-prototypes",
 ]
 
+posix_x86_copts_c11 = posix_copts_c11 + [
+    "-m32",
+]
+
 boringssl_copts_c11 = boringssl_copts + select({
-    ":linux_x86_64": posix_copts_c11,
+    ":linux_x86": posix_x86_copts_c11,
+    # ":linux_x86_64": posix_copts_c11,
     ":linux_ppc64le": posix_copts_c11,
     ":mac_x86_64": posix_copts_c11,
     "//conditions:default": [],
@@ -120,12 +137,23 @@ posix_copts_cxx = [
     "-Wmissing-declarations",
 ]
 
+posix_x86_copts_cxx = [
+    "-m32",
+]
+
 boringssl_copts_cxx = boringssl_copts + select({
-    ":linux_x86_64": posix_copts_cxx,
+    ":linux_x86": posix_x86_copts_cxx,
+    # ":linux_x86_64": posix_copts_cxx,
     ":linux_ppc64le": posix_copts_cxx,
     ":mac_x86_64": posix_copts_cxx,
     "//conditions:default": [],
 })
+
+boringssl_x86_linkopts = [
+    "-m32",
+    "-L/usr/lib32",
+    "-lpthread",
+]
 
 cc_library(
     name = "crypto",
@@ -134,6 +162,7 @@ cc_library(
     copts = boringssl_copts_c11,
     includes = ["src/include"],
     linkopts = select({
+        ":linux_x86": boringssl_x86_linkopts,
         ":mac_x86_64": [],
         # Android supports pthreads, but does not provide a libpthread
         # to link against.
@@ -150,6 +179,9 @@ cc_library(
     hdrs = ssl_headers,
     copts = boringssl_copts_cxx,
     includes = ["src/include"],
+    linkopts = select({
+        ":linux_x86": boringssl_x86_linkopts,
+    }),
     visibility = ["//visibility:public"],
     deps = [
         ":crypto",
@@ -160,6 +192,9 @@ cc_binary(
     name = "bssl",
     srcs = tool_sources + tool_headers,
     copts = boringssl_copts_cxx,
+    linkopts = select({
+        ":linux_x86": boringssl_x86_linkopts,
+    }),
     visibility = ["//visibility:public"],
     deps = [":ssl"],
 )
